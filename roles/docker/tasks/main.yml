@@ -39,6 +39,7 @@
       - docker-ce-cli
       - containerd.io
       - docker-buildx-plugin
+      - python3-requests
     state: present
     update_cache: true
 
@@ -84,29 +85,23 @@
 # ------------------------------------------------------------------------------
 
 - name: Create registry cache volume
-  ansible.builtin.command:
-    cmd: docker volume create registry-cache
-  register: vol_create
-  changed_when: "'registry-cache' in vol_create.stdout"
-  failed_when: false
+  community.docker.docker_volume:
+    name: registry-cache
   when: registry_mirror_enabled | default(true)
 
-- name: Start pull-through registry mirror
-  ansible.builtin.command:
-    cmd: >-
-      docker run -d
-      --name registry-mirror
-      --restart always
-      -p 5000:5000
-      -v registry-cache:/var/lib/registry
-      -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io
-      registry:2
-  register: mirror_start
-  changed_when: mirror_start.rc == 0
-  failed_when:
-    - mirror_start.rc != 0
-    - "'already in use' not in mirror_start.stderr"
-  when: registry_mirror_enabled | default(true)
+- name: Configure pull-through registry mirror
+  community.docker.docker_container:
+    name: registry-mirror
+    image: registry:2
+    state: "{{ 'started' if registry_mirror_enabled | default(true) else 'absent' }}"
+    paused: false
+    restart_policy: always
+    published_ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - registry-cache:/var/lib/registry
+    env:
+      REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
 
 # ------------------------------------------------------------------------------
 # 5. Build scratch tmpfs
@@ -125,7 +120,7 @@
     mode: "0755"
 
 - name: Mount tmpfs for build scratch
-  ansible.builtin.mount:
+  ansible.posix.mount:
     path: "{{ build_scratch_path }}"
     src: tmpfs
     fstype: tmpfs
