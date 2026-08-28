@@ -19,11 +19,9 @@
 # This workflow is disabled by default (template repo). To activate it:
 #
 #   1. Uncomment the `schedule` trigger below
-#   2. Add GitHub secrets:
-#      - SSH_PRIVATE_KEY — Private SSH key for root@runner
-#      - RUNNER_HOST     — (optional) IP or hostname. Enables strict
-#                          host key checking. Omit to skip.
-#   3. Push to main
+#   2. Create a protected `runner-maintenance` environment
+#   3. Add environment secrets: SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS, RUNNER_HOST
+#   4. Push to main
 #
 # The workflow also supports manual dispatch via the "Run workflow" button
 # in the Actions tab — useful for testing before enabling the schedule.
@@ -41,9 +39,13 @@ concurrency:
   group: ansible-provision
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    environment: runner-maintenance
     env:
       RUNNER_HOST: ${{ secrets.RUNNER_HOST }}
 
@@ -58,20 +60,20 @@ jobs:
       - name: Install Ansible collections
         run: ansible-galaxy collection install -r requirements.yml
 
-      - name: Write SSH key
+      - name: Write SSH credentials
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/runner
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/runner
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/runner
-
-      - name: Add host key to known_hosts
-        if: env.RUNNER_HOST != ''
-        run: ssh-keyscan -H "$RUNNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Run playbook
         env:
-          # Skip host key checking unless RUNNER_HOST is set (which populates known_hosts above).
-          ANSIBLE_HOST_KEY_CHECKING: ${{ env.RUNNER_HOST != '' && 'true' || 'false' }}
+          ANSIBLE_HOST_KEY_CHECKING: "true"
         run: >-
           ansible-playbook playbook.yml
           --private-key ~/.ssh/runner

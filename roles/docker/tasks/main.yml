@@ -136,6 +136,18 @@
 # whenever Docker starts.
 # ------------------------------------------------------------------------------
 
+- name: Inspect persistent BuildKit builder
+  ansible.builtin.command:
+    cmd: docker buildx inspect persistent-builder
+  become: true
+  become_user: "{{ runner_user }}"
+  register: docker_buildkit_builder
+  changed_when: false
+  failed_when:
+    - docker_buildkit_builder.rc != 0
+    - "'no builder' not in docker_buildkit_builder.stderr"
+  check_mode: false
+
 - name: Create BuildKit config directory
   ansible.builtin.file:
     path: /etc/buildkit
@@ -151,6 +163,17 @@
     owner: root
     group: "{{ runner_group }}"
     mode: "0644"
+  register: docker_buildkit_config
+
+- name: Remove BuildKit builder when daemon config changes
+  ansible.builtin.command:
+    cmd: docker buildx rm --keep-state persistent-builder
+  become: true
+  become_user: "{{ runner_user }}"
+  changed_when: true
+  when:
+    - docker_buildkit_config.changed
+    - docker_buildkit_builder.rc == 0
 
 - name: Deploy BuildKit builder ensure script
   ansible.builtin.template:
@@ -173,5 +196,5 @@
   ansible.builtin.systemd:
     name: buildkit-builder
     enabled: true
-    state: started
+    state: "{{ 'restarted' if docker_buildkit_config.changed or docker_buildkit_builder.rc != 0 else 'started' }}"
     daemon_reload: true

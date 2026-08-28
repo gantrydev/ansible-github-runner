@@ -197,11 +197,13 @@ The included GitHub Actions workflow (`.github/workflows/ansible.yml`) re-runs t
 
 To enable it:
 
-1. Uncomment the `schedule` trigger in `.github/workflows/ansible.yml`
-2. Add GitHub secrets:
+1. Create a protected GitHub environment named `runner-maintenance`
+2. Add environment secrets:
    - `SSH_PRIVATE_KEY` — private SSH key for `root@<runner-ip>`
-   - `RUNNER_HOST` *(optional)* — IP or hostname of the runner machine. When set, the workflow runs `ssh-keyscan` and enables strict host key checking. When omitted, host key checking is skipped (fine for CI targeting your own infra).
-3. Push to main
+   - `SSH_KNOWN_HOSTS` — pinned `known_hosts` entry for the runner
+   - `RUNNER_HOST` — IP or hostname of the runner machine
+3. Uncomment the `schedule` trigger in `.github/workflows/ansible.yml`
+4. Push to main
 
 **Why schedule this?** Self-hosted runners are long-lived infrastructure. Unlike GitHub-hosted runners (fresh VM every job), yours accumulate state — Docker images pile up, OS packages fall behind on security patches, the runner binary itself gets outdated. A weekly re-run keeps everything current without manual SSH sessions. Because the playbook is idempotent, it only touches what's drifted.
 
