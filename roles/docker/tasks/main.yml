@@ -136,6 +136,22 @@
 # whenever Docker starts.
 # ------------------------------------------------------------------------------
 
+- name: Create BuildKit config directory
+  ansible.builtin.file:
+    path: /etc/buildkit
+    state: directory
+    owner: root
+    group: "{{ runner_group }}"
+    mode: "0755"
+
+- name: Deploy BuildKit daemon config
+  ansible.builtin.template:
+    src: buildkitd.toml.j2
+    dest: /etc/buildkit/buildkitd.toml
+    owner: root
+    group: "{{ runner_group }}"
+    mode: "0644"
+
 - name: Deploy BuildKit builder ensure script
   ansible.builtin.template:
     src: ensure-buildkit-builder.sh.j2

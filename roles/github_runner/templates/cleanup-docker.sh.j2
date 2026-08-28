@@ -14,9 +14,13 @@ docker container prune --force --filter "until={{ docker_prune_keep_hours }}h"
 # Remove dangling images (untagged layers left over from builds).
 docker image prune --force --filter "until={{ docker_prune_keep_hours }}h"
 
-# Prune build cache beyond the configured limit. BuildKit keeps the most
-# recently used entries up to the byte limit.
-docker buildx prune --force --keep-storage {{ docker_buildkit_cache_size }}
+# Remove unused anonymous volumes.
+docker volume prune --force
+
+# Cap the persistent builder's cache.
+sudo -u {{ runner_user }} -H docker buildx prune --force \
+  --builder persistent-builder \
+  --max-used-space {{ docker_buildkit_cache_size }}
 
 # Remove unused networks (not attached to any running container).
 docker network prune --force

@@ -1,0 +1,5 @@
+# Managed by Ansible — do not edit manually.
+
+[worker.oci]
+  gc = true
+  maxUsedSpace = "{{ docker_buildkit_cache_size | upper }}"
